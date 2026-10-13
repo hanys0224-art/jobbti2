@@ -98,6 +98,13 @@ canvas.px{image-rendering:pixelated;image-rendering:crisp-edges}
 .hint{margin:-6px 0 0;font-size:13px;color:var(--ink-2)}
 .opts{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
 .opts.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.opts.two .opt:last-child:nth-child(odd){grid-column:1/-1}
+.hidden-note{display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 0 0;font-size:13px;color:var(--ink-2);text-align:center}
+.hidden-note .q{flex:none;width:22px;height:22px;display:grid;place-items:center;font-family:var(--f-pixel);font-size:12px;background:var(--ink);color:var(--hi)}
+.is-ceo .r-head h2{text-shadow:4px 4px 0 var(--hi)}
+.is-ceo .eyebrow{color:var(--stamp)}
+.stat.hidden-stat{border-top:2px dashed var(--rule);padding-top:8px}
+#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:10}
 .opt{display:flex;align-items:center;gap:12px;text-align:left;font-family:var(--f-body);font-size:15px;font-weight:600;line-height:1.4;color:var(--ink);background:var(--paper);border:2px solid var(--ink);box-shadow:3px 3px 0 var(--ink);padding:11px 12px;cursor:pointer;min-width:0}
 .opt:hover{background:var(--soft)}
 .opt:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
@@ -193,6 +200,7 @@ canvas.px{image-rendering:pixelated;image-rendering:crisp-edges}
     <div class="roster">
       <h3>발급 가능한 사원증 8종</h3>
       <div class="roster-grid" id="roster"></div>
+      <p class="hidden-note"><span class="q">?</span>히든 유형 1종이 숨어 있어요. 운이 좋으면 사원증 대신 다른 걸 받게 돼요.</p>
     </div>
   </section>
 
@@ -242,7 +250,7 @@ canvas.px{image-rendering:pixelated;image-rendering:crisp-edges}
   <section class="screen" id="s-result" hidden>
     <div class="hud"><span>Stage <b>Clear</b></span><span id="rNo"></span></div>
     <header class="r-head">
-      <p class="eyebrow">최종 합격</p>
+      <p class="eyebrow" id="rEyebrow">최종 합격</p>
       <h2 id="rTitle"></h2>
       <p id="rDesc"></p>
     </header>
@@ -353,9 +361,17 @@ const TYPES = {
     about:'감보다 근거를 믿고, 숫자와 자료 속에서 패턴을 찾아내요. 질문을 끝까지 파고드는 끈기가 있어서 데이터 분석과 연구 직무에 어울려요.',
     jobs:[['데이터 분석가','데이터로 의사결정의 근거를 찾는 일'],['시장조사 리서처','설문과 인터뷰로 소비자 마음 읽기'],['연구원','가설을 세우고 실험으로 검증']],
     certs:['adsp','sqld','bigdata','survey'],
-    acts:[['데이터 분석 공모전','공공데이터로 문제를 풀어 봐요'],['학부연구생','연구실에서 진짜 연구 과정을 경험'],['데이터 분석 학회','파이썬·SQL을 함께 공부하는 모임']]}
+    acts:[['데이터 분석 공모전','공공데이터로 문제를 풀어 봐요'],['학부연구생','연구실에서 진짜 연구 과정을 경험'],['데이터 분석 학회','파이썬·SQL을 함께 공부하는 모임']]},
+  ceo:{name:'야망 사업가형', code:'CEO', dept:'대표이사실', color:'#16181D', on:'#FFD23F', hair:'#3B2A20',
+    desc:'남의 회사보다 내 회사가 더 궁금한 사람',
+    about:'아이디어를 떠올리는 데서 끝나지 않고 직접 팔아 보고, 사람을 모으고, 책임지는 쪽을 골랐어요. 정해진 자리보다 판을 새로 만드는 게 더 재밌는 당신에게는 사원증 대신 대표이사 명함을 드려요.',
+    jobs:[['스타트업 창업가','문제를 찾고 팀을 꾸려 서비스를 시장에 내놓는 사람'],['1인 브랜드·스마트스토어 대표','작게 시작해서 직접 팔아 보며 키우는 사람'],['사내벤처·신사업 기획자','회사 안에서 새 사업을 일으키는 사람']],
+    certs:['acct','ga','sem','distrib'],
+    acts:[['창업 동아리·창업 경진대회','팀을 꾸려 사업계획서를 끝까지 써 봐요'],['예비창업패키지·대학 창업지원단','지원금과 멘토링을 받으며 진짜 창업 준비'],['스마트스토어·플리마켓 판매','작은 장사로 원가, 마진, 고객을 배워요']]}
 };
 const ORDER = ['idea','creator','logic','keeper','insider','mentor','global','detective'];
+const CEO_LINE = 7; // hidden type: ceo points at or above this beat every regular type
+const typeNo = k => k==='ceo' ? '00' : '0'+(ORDER.indexOf(k)+1);
 
 const QS = [
   {tag:'기본 정보', q:'전공 계열이 어떻게 되나요?', type:'single', cols:2, keep:true, opts:[
@@ -365,12 +381,14 @@ const QS = [
     {t:'교육', s:{mentor:3,insider:1}}, {t:'의료·보건', s:{mentor:2,detective:1,keeper:1}}]},
   {tag:'기본 정보', q:'요즘 관심 가는 분야를 골라주세요', hint:'최대 3개까지 고를 수 있어요', type:'multi', max:3, cols:2, opts:[
     {t:'광고·브랜드', s:{idea:2}}, {t:'디자인·영상', s:{creator:2}}, {t:'IT·테크', s:{logic:2}}, {t:'금융·회계', s:{keeper:2}},
-    {t:'유통·고객 서비스', s:{insider:2}}, {t:'교육·사회문제', s:{mentor:2}}, {t:'여행·외국어', s:{global:2}}, {t:'과학·데이터', s:{detective:2}}]},
+    {t:'유통·고객 서비스', s:{insider:2}}, {t:'교육·사회문제', s:{mentor:2}}, {t:'여행·외국어', s:{global:2}}, {t:'과학·데이터', s:{detective:2}},
+    {t:'창업·비즈니스', s:{ceo:2,idea:1}}]},
   {tag:'기본 정보', q:'쉬는 날엔 주로 뭐 해요?', type:'single', opts:[
     {t:'새로 생긴 팝업스토어·핫플 탐방', s:{idea:3}}, {t:'그림 그리기, 사진·영상 편집', s:{creator:3}},
     {t:'게임 공략 연구, 코딩 사이드 프로젝트', s:{logic:3}}, {t:'방 정리, 가계부·다이어리 정리', s:{keeper:3}},
     {t:'친구들 불러서 모임 주최', s:{insider:3}}, {t:'봉사활동, 친구 고민 들어주기', s:{mentor:3}},
-    {t:'외국어 공부, 여행 계획 짜기', s:{global:3}}, {t:'다큐·추리물 정주행', s:{detective:3}}]},
+    {t:'외국어 공부, 여행 계획 짜기', s:{global:3}}, {t:'다큐·추리물 정주행', s:{detective:3}},
+    {t:'스마트스토어·중고거래로 용돈 벌기', s:{ceo:3,insider:1}}]},
   {tag:'기본 정보', q:'갖고 있는 자격증을 모두 골라주세요', hint:'고른 자격증은 결과의 추천 목록에서 빼고 보여드려요', type:'multi', cols:2, opts:[
     {t:'컴퓨터활용능력', id:'com', s:{keeper:1}}, {t:'토익·토플', id:'toeic', s:{global:1}},
     {t:'오픽·토익스피킹', id:'speaking', s:{global:1,insider:1}}, {t:'운전면허', id:'drive', s:{insider:1}},
@@ -380,15 +398,15 @@ const QS = [
     {t:'없음', id:'none', none:true, s:{}}]},
   {tag:'취향 저격', q:'가장 재밌게 본 드라마는?', type:'single', cols:2, opts:[
     {t:'미생', sub:'종합상사 신입사원 이야기', s:{keeper:2,insider:1}},
-    {t:'스타트업', sub:'IT 창업 도전기', s:{logic:2,idea:1}},
+    {t:'스타트업', sub:'IT 창업 도전기', s:{logic:2,idea:1,ceo:1}},
     {t:'슬기로운 의사생활', sub:'병원 사람들의 일상', s:{mentor:2,detective:1}},
-    {t:'이태원 클라쓰', sub:'작은 가게에서 프랜차이즈까지', s:{insider:2,idea:1}},
+    {t:'이태원 클라쓰', sub:'작은 가게에서 프랜차이즈까지', s:{insider:2,idea:1,ceo:2}},
     {t:'이상한 변호사 우영우', sub:'단서로 사건을 푸는 변호사', s:{detective:2,logic:1}},
     {t:'대행사', sub:'광고회사 사람들의 생존기', s:{idea:2,creator:1}},
     {t:'그 해 우리는', sub:'다큐 PD와 일러스트레이터', s:{creator:2,mentor:1}},
     {t:'킹더랜드', sub:'호텔리어들의 이야기', s:{global:2,insider:1}}]},
   {tag:'상황 퀘스트', q:'팀 프로젝트에서 나는?', type:'single', opts:[
-    {t:'주제 회의부터! 아이디어를 10개쯤 던진다', s:{idea:2,insider:1}},
+    {t:'주제 회의부터! 아이디어를 10개쯤 던진다', s:{idea:2,insider:1,ceo:1}},
     {t:'발표 자료 디자인은 나한테 맡겨', s:{creator:2,idea:1}},
     {t:'자료 조사하고 근거를 정리한다', s:{detective:2,logic:1}},
     {t:'일정표 만들고 역할 나누고 마감을 챙긴다', s:{keeper:2,mentor:1}}]},
@@ -413,7 +431,7 @@ const QS = [
     {t:'기분 전환하러 일단 같이 나가자고 한다', s:{insider:2,global:1}},
     {t:'위로 플레이리스트나 짤을 만들어 보낸다', s:{creator:2,mentor:1}}]},
   {tag:'상황 퀘스트', q:'동아리 회장이 갑자기 잠수를 탔다! 나는?', type:'single', opts:[
-    {t:'일단 내가 맡는다. 사람들부터 모은다', s:{insider:2,idea:1}},
+    {t:'일단 내가 맡는다. 사람들부터 모은다', s:{insider:2,idea:1,ceo:2}},
     {t:'회비랑 장부부터 정리한다', s:{keeper:3}},
     {t:'이참에 다른 학교 동아리와 교류 행사를 연다', s:{global:2,insider:1}},
     {t:'불안해할 신입 부원들부터 챙긴다', s:{mentor:2,keeper:1}}]},
@@ -421,7 +439,8 @@ const QS = [
     {t:'내 이름을 건 브랜드나 캠페인을 만든 사람', s:{idea:2,creator:1}},
     {t:'여러 나라 도시를 오가며 일하는 사람', s:{global:3}},
     {t:'아무도 못 푼 문제를 데이터로 푼 사람', s:{detective:2,logic:1}},
-    {t:'내가 만든 서비스를 수백만 명이 쓰는 사람', s:{logic:2,idea:1}}]}
+    {t:'내가 만든 서비스를 수백만 명이 쓰는 사람', s:{logic:2,idea:1}},
+    {t:'내 회사를 차린 대표님', s:{ceo:3,insider:1}}]}
 ];
 
 /* ---------- PIXEL HELPERS ---------- */
@@ -461,9 +480,10 @@ const ACC={
   insider:[[5,4],['..KKKKKK..','.K......K.','K........K','K........K','KK......KK','KK......KK','K.........','K.........','.KKK......']],
   mentor:[[15,0],['PP.PP','PPPPP','.PPP.','..P..']],
   global:[[5,4],['..BBBBBB.....','.BBBBWBBBB...','BBBBBBBBBBBBB']],
-  detective:[[4,2],['....TTTT....','...TTTTTT...','..TTTTTTTT..','..tttttttt..','TTTTTTTTTTTT']]
+  detective:[[4,2],['....TTTT....','...TTTTTT...','..TTTTTTTT..','..tttttttt..','TTTTTTTTTTTT']],
+  ceo:[[5,1],['Y...YY...Y','YY.YYYY.YY','YYYYYYYYYY','YRYYgYYRYY']]
 };
-const ACC2={detective:[[15,12],['.KK.','KggK','KggK','.KK.','K...']]};
+const ACC2={detective:[[15,12],['.KK.','KggK','KggK','.KK.','K...']], ceo:[[9,14],['rr','rr','rr']]};
 const ACC_PAL={Y:'#FFD23F',w:'#FFF6C8',G:'#9AA3B5',R:'#E8475B',K:'#16181D',r:'#E8475B',P:'#FF4F8B',B:'#1F3B73',W:'#FFFFFF',T:'#8B5E34',t:'#5E3D1F',g:'#BFEFFF'};
 function drawAvatar(ctx, key, s, ox, oy){
   ox=ox||0; oy=oy||0;
@@ -733,32 +753,37 @@ function advance(){
 
 /* ---------- RESULT ---------- */
 function compute(){
-  const sc={}; ORDER.forEach(k=>sc[k]=0);
+  const sc={ceo:0}; ORDER.forEach(k=>sc[k]=0);
   QS.forEach((q,i)=>{
     const a=answers[i]; if(a==null) return;
     (Array.isArray(a)?a:[a]).forEach(j=>{const s=q.opts[j].s||{}; for(const k in s) sc[k]+=s[k];});
   });
   let best=ORDER[0]; ORDER.forEach(k=>{ if(sc[k]>sc[best]) best=k; });
+  if(sc.ceo>=CEO_LINE) best='ceo';
   const certQ=QS[3]; const owned=(answers[3]||[]).map(j=>certQ.opts[j].id).filter(id=>id&&id!=='none');
   return {sc,best,owned};
 }
 let RES=null, storyBlob=null;
 const LOAD_MSGS=['인사팀이 지원서를 읽는 중...','증명사진 촬영 중...','사번 발급 중...','사원증 코팅 중...'];
+const CEO_MSGS=['인사팀이 지원서를 읽는 중...','증명사진 촬영 중...','잠깐, 이 지원서는...?','사원증 발급 취소!','대표이사 명함 인쇄 중...'];
 function finish(){
   show('load');
   const fill=document.getElementById('loadFill'), msg=document.getElementById('loadMsg');
   const r=compute();
   const d=new Date();
   r.date=d.getFullYear()+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0');
-  r.empId='JB-26'+(ORDER.indexOf(r.best)+1)+String(Math.floor(1000+Math.random()*9000));
+  const rd=n=>String(Math.floor(Math.random()*Math.pow(10,n))).padStart(n,'0');
+  r.ceo=r.best==='ceo';
+  r.empId=r.ceo?('26'+(1+Math.floor(Math.random()*9))+'-86-'+rd(5)):('JB-26'+(ORDER.indexOf(r.best)+1)+String(Math.floor(1000+Math.random()*9000)));
   r.name=player;
   RES=r;
-  const total=reduce?300:1900; const t0=performance.now();
+  const msgs=r.ceo?CEO_MSGS:LOAD_MSGS;
+  const total=reduce?300:(r.ceo?2800:1900); const t0=performance.now();
   const storyP=buildStory(r);
   (function step(now){
     const p=Math.min(1,(now-t0)/total);
     fill.style.width=(Math.floor(p*12)/12*100)+'%';
-    msg.textContent=LOAD_MSGS[Math.min(LOAD_MSGS.length-1,Math.floor(p*LOAD_MSGS.length))];
+    msg.textContent=msgs[Math.min(msgs.length-1,Math.floor(p*msgs.length))];
     if(p<1) requestAnimationFrame(step);
     else storyP.then(()=>renderResult(r)).catch(()=>renderResult(r));
   })(t0);
@@ -766,9 +791,11 @@ function finish(){
 function el(tag,cls,text){const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e;}
 function renderResult(r){
   const T=TYPES[r.best];
-  document.getElementById('rNo').innerHTML='No.<b>0'+(ORDER.indexOf(r.best)+1)+'</b> · '+T.code;
-  document.getElementById('rTitle').textContent=r.name+'님은 '+T.name;
-  document.getElementById('rDesc').textContent=T.desc;
+  document.getElementById('rNo').innerHTML=r.ceo?'<b>Hidden</b> · CEO':('No.<b>'+typeNo(r.best)+'</b> · '+T.code);
+  document.getElementById('rEyebrow').textContent=r.ceo?'히든 유형 발견':'최종 합격';
+  document.getElementById('rTitle').textContent=r.ceo?'축하합니다! 창업에 당첨되셨습니다':(r.name+'님은 '+T.name);
+  document.getElementById('rDesc').textContent=r.ceo?(r.name+' 대표님은 히든 유형 \''+T.name+'\'. '+T.desc+'이에요.'):T.desc;
+  document.getElementById('s-result').classList.toggle('is-ceo',r.ceo);
   document.getElementById('rAbout').textContent=T.about;
   const jl=document.getElementById('rJobs'); jl.innerHTML='';
   T.jobs.forEach(([n,s],i)=>{const li=el('li'); li.append(el('span','n','0'+(i+1))); const d=el('div'); d.append(el('b',null,n),el('span',null,s)); li.append(d); jl.append(li);});
@@ -791,9 +818,30 @@ function renderResult(r){
     row.append(bar, el('span','lv','LV.'+r.sc[k]));
     st.append(row);
   });
+  const crow=el('div','stat hidden-stat'+(r.ceo?' top':''));
+  crow.append(el('span','nm','히든 · 사업가'));
+  const cbar=el('span','bar'); const ci=el('i'); ci.style.width=Math.min(100,r.sc.ceo/Math.max(max,CEO_LINE)*100)+'%'; ci.style.background='#FFD23F'; cbar.append(ci);
+  crow.append(cbar, el('span','lv','LV.'+r.sc.ceo));
+  st.append(crow);
   const msg=document.getElementById('shareMsg'); msg.textContent='';
   document.getElementById('shareFallback').hidden=true;
   show('result');
+  if(r.ceo) burst();
+}
+
+/* ---------- CONFETTI (hidden CEO reveal) ---------- */
+function burst(){
+  if(reduce) return;
+  const c=document.createElement('canvas'); c.id='confetti'; document.body.append(c);
+  const W=c.width=innerWidth, H=c.height=innerHeight, x=c.getContext('2d');
+  const cols=['#FFD23F','#F5A400','#E8475B','#2F6BFF','#22A35A','#FF5FA2'];
+  const ps=Array.from({length:120},()=>({x:W/2+(Math.random()-.5)*80,y:H*.35,vx:(Math.random()-.5)*14,vy:-6-Math.random()*10,s:6+Math.floor(Math.random()*3)*4,c:cols[Math.floor(Math.random()*cols.length)]}));
+  const t0=performance.now();
+  (function f(now){
+    const el=now-t0; x.clearRect(0,0,W,H);
+    ps.forEach(p=>{p.vy+=.35; p.vx*=.99; p.x+=p.vx; p.y+=p.vy; x.fillStyle=p.c; x.fillRect(Math.round(p.x/4)*4,Math.round(p.y/4)*4,p.s,p.s);});
+    if(el<3200) requestAnimationFrame(f); else c.remove();
+  })(t0);
 }
 
 /* ---------- STORY IMAGE ---------- */
@@ -824,7 +872,7 @@ async function buildStory(r){
   x.fillStyle='#FFFFFF'; x.fillRect(0,0,1080,1920);
   // pixel confetti
   let seed=hash(r.empId); const rnd=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0; return seed/4294967296;};
-  const conf=[T.color,'#FFD23F','#2F6BFF','#FF5FA2','#22A35A'];
+  const conf=r.ceo?['#FFD23F','#F5A400','#E8475B','#FFD23F','#2F6BFF']:[T.color,'#FFD23F','#2F6BFF','#FF5FA2','#22A35A'];
   for(let i=0;i<90;i++){
     const s=rnd()<.3?24:12; const px=Math.floor(rnd()*88)*12, py=Math.floor(rnd()*158)*12;
     if(px>96&&px<990&&py>330&&py<1690) continue;
@@ -833,7 +881,7 @@ async function buildStory(r){
   x.globalAlpha=1;
   x.fillStyle=INK; x.textBaseline='alphabetic';
   x.font=PX(28,700); x.textAlign='left'; x.fillText('JOB-BTI 2026',70,110);
-  x.textAlign='right'; x.fillText('NEW HIRE',1010,110);
+  x.textAlign='right'; x.fillText(r.ceo?'NEW CEO':'NEW HIRE',1010,110);
   // lanyard
   x.fillStyle=T.color; x.fillRect(470,0,140,330);
   x.fillStyle=INK; x.fillRect(464,0,6,330); x.fillRect(610,0,6,330);
@@ -854,13 +902,13 @@ async function buildStory(r){
   rr(x,120,390,840,1260,36); x.lineWidth=7; x.strokeStyle=INK; x.stroke();
   rr(x,470,424,140,26,13); x.fillStyle='#FFFFFF'; x.fill(); x.lineWidth=5; x.stroke();
   x.fillStyle=T.on; x.textAlign='left';
-  x.font=PX(46,700); x.fillText('JOB-BTI CORP.',168,540);
-  x.font=PX(24); x.fillText('EMPLOYEE ID CARD',172,588);
-  x.textAlign='right'; x.font=PX(44,700); x.fillText('No.0'+(ORDER.indexOf(r.best)+1),912,540);
-  x.font=PX(24); x.fillText(T.code,912,588);
+  x.font=PX(r.ceo?40:46,700); x.fillText(r.ceo?'JOB-BTI HOLDINGS':'JOB-BTI CORP.',168,540);
+  x.font=PX(24); x.fillText(r.ceo?'BUSINESS CARD':'EMPLOYEE ID CARD',172,588);
+  x.textAlign='right'; x.font=PX(44,700); x.fillText(r.ceo?'CEO':'No.'+typeNo(r.best),912,540);
+  x.font=PX(24); x.fillText(r.ceo?'HIDDEN':T.code,912,588);
   // photo
   x.save(); x.beginPath(); x.rect(390,672,300,300); x.clip();
-  x.fillStyle=hexA(T.color,.16); x.fillRect(390,672,300,300);
+  x.fillStyle=r.ceo?hexA('#FFD23F',.4):hexA(T.color,.16); x.fillRect(390,672,300,300);
   x.translate(400,686); drawAvatar(x,r.best,14,0,0);
   x.restore();
   x.lineWidth=6; x.strokeStyle=INK; x.strokeRect(390,672,300,300);
@@ -868,7 +916,7 @@ async function buildStory(r){
   x.save(); x.translate(800,930); x.rotate(-0.24); x.globalAlpha=.88;
   x.strokeStyle='#E8475B'; x.lineWidth=9; x.beginPath(); x.arc(0,0,92,0,Math.PI*2); x.stroke();
   x.lineWidth=3; x.beginPath(); x.arc(0,0,76,0,Math.PI*2); x.stroke();
-  x.fillStyle='#E8475B'; x.textAlign='center'; x.font=DH(50); x.fillText('최종합격',0,16);
+  x.fillStyle='#E8475B'; x.textAlign='center'; x.font=DH(50); x.fillText(r.ceo?'창업당첨':'최종합격',0,16);
   x.font=PX(16,700); x.fillText('JOB-BTI',0,-34); x.fillText(r.date,0,54);
   x.restore();
   // name + type
@@ -879,11 +927,14 @@ async function buildStory(r){
   x.fillStyle=T.on; x.fillText(T.name,540,1180);
   x.fillStyle='#5B6170'; fit(x,T.desc,720,32,s=>PL(s,400)); x.fillText(T.desc,540,1256);
   x.save(); x.setLineDash([14,10]); x.strokeStyle='#C5CAD3'; x.lineWidth=3; x.beginPath(); x.moveTo(170,1292); x.lineTo(910,1292); x.stroke(); x.restore();
-  const rows=[['부서',T.dept],['직무',T.jobs.map(j=>j[0]).join(' · ')],['사번',r.empId],['입사일',r.date]];
+  const rows=r.ceo
+    ?[['직함','대표이사'],['회사','(주)'+r.name+'컴퍼니'],['사업자번호',r.empId],['개업일',r.date]]
+    :[['부서',T.dept],['직무',T.jobs.map(j=>j[0]).join(' · ')],['사번',r.empId],['입사일',r.date]];
+  const vx=r.ceo?356:310;
   rows.forEach(([k,v],i)=>{
     const y=1350+i*56;
     x.textAlign='left'; x.fillStyle='#5B6170'; x.font=PL(28,600); x.fillText(k,176,y);
-    x.fillStyle=INK; fit(x,v,600,32,s=>PL(s,700)); x.fillText(v,310,y);
+    x.fillStyle=INK; fit(x,v,910-vx,32,s=>PL(s,700)); x.fillText(v,vx,y);
   });
   // barcode
   let bs=hash(r.empId+r.name); let bx=176;
@@ -891,7 +942,7 @@ async function buildStory(r){
   while(bx<900){ bs=(Math.imul(bs,1103515245)+12345)>>>0; const w=2+(bs>>>28)%4*2; if(((bs>>>8)&1)||bx===176) x.fillRect(bx,1556,w,56); bx+=w+3; }
   x.fillStyle='#5B6170'; x.font=PX(18); x.textAlign='center'; x.fillText(r.empId.replace(/-/g,' ')+'  ·  '+r.date.replace(/\./g,''),540,1634);
   // bottom
-  x.fillStyle=INK; x.font=DH(56); x.fillText('너는 어떤 사원일까?',540,1772);
+  x.fillStyle=INK; x.font=DH(56); x.fillText(r.ceo?'너는 사원일까, 사장일까?':'너는 어떤 사원일까?',540,1772);
   x.fillStyle='#5B6170'; x.font=PL(30,600); x.fillText('12문항으로 알아보는 잡BTI',540,1822);
   x.font=PL(26,600); const cred='사단법인 고래 제작'; const cw=x.measureText(cred).width; const gx=540-(64+14+cw)/2;
   x.save(); x.translate(gx,1850); drawMap(x,WHALE,WHALE_PAL,0,0,4); x.restore();
@@ -936,6 +987,7 @@ document.getElementById('saveBtn').onclick=async()=>{
 };
 function shareText(){
   const T=TYPES[RES.best];
+  if(RES.ceo) return '[잡BTI] 축하합니다! 창업에 당첨됐다\n히든 유형 \''+T.name+'\' 나와서 사원증 대신 대표이사 명함 받음\n너는 사원일까, 사장일까? 12문항으로 확인해 봐'+(SHARE_URL?'\n'+SHARE_URL:'')+'\n#잡BTI #창업당첨 #대표이사';
   return '[잡BTI] 내 사원증 나왔다! 나는 \''+T.name+'\' ('+T.dept+')\n어울리는 직무: '+T.jobs.map(j=>j[0]).join(', ')+'\n너는 어떤 사원일까? 12문항으로 확인해 봐'+(SHARE_URL?'\n'+SHARE_URL:'')+'\n#잡BTI #직무테스트 #사원증';
 }
 document.getElementById('copyBtn').onclick=()=>{
