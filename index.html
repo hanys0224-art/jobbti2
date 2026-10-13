@@ -267,7 +267,7 @@ canvas.px{image-rendering:pixelated;image-rendering:crisp-edges}
       </div>
       <div class="r-info">
         <div class="panel sec">
-          <h3>이런 사원이에요</h3>
+          <h3 id="rAboutH">이런 사원이에요</h3>
           <p class="about" id="rAbout"></p>
         </div>
         <div class="panel sec">
@@ -796,6 +796,7 @@ function renderResult(r){
   document.getElementById('rTitle').textContent=r.ceo?'축하합니다! 창업에 당첨되셨습니다':(r.name+'님은 '+T.name);
   document.getElementById('rDesc').textContent=r.ceo?(r.name+' 대표님은 히든 유형 \''+T.name+'\'. '+T.desc+'이에요.'):T.desc;
   document.getElementById('s-result').classList.toggle('is-ceo',r.ceo);
+  document.getElementById('rAboutH').textContent=r.ceo?'이런 대표님이에요':'이런 사원이에요';
   document.getElementById('rAbout').textContent=T.about;
   const jl=document.getElementById('rJobs'); jl.innerHTML='';
   T.jobs.forEach(([n,s],i)=>{const li=el('li'); li.append(el('span','n','0'+(i+1))); const d=el('div'); d.append(el('b',null,n),el('span',null,s)); li.append(d); jl.append(li);});
